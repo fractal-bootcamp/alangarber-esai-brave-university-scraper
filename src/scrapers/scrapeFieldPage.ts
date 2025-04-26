@@ -19,7 +19,7 @@ export async function scrapeFieldPage(url: string, field: UniversityField) {
     }
 
     const pageContent = await page.content();
-    const truncatedContent = pageContent.slice(0, 15000); // limit to 15,000 characters
+    const truncatedContent = pageContent.slice(0, 8000); // limit to 8,000 characters
     const structuredData = await extractStructuredData(truncatedContent as UniversityField, field);
 
     console.log(`📄 Extracted ${field}:`, structuredData ? "✅ Success" : "⚠️ Empty or Failed");

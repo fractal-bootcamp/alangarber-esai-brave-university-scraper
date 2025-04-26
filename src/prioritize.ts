@@ -10,7 +10,7 @@ const prioritizationSchema = z.object({
 
 export async function askLLMToPrioritizeLinks(links: { href: string; text: string }[]) {
   const { object } = await generateObject({
-    model: openai('gpt-4.5-preview'),
+    model: openai('gpt-4o'),
     schema: prioritizationSchema,
     prompt: `
 You are selecting the 10–14 most useful links from a university website to help understand the school's:

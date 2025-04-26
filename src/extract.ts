@@ -71,7 +71,7 @@ export async function extractStructuredData(field: UniversityField, text: string
   if (schema instanceof z.ZodString) {
     // If the schema is a simple string
     const { text: generated } = await generateText({
-      model: openai('gpt-4.5-preview'),
+      model: openai('gpt-4o'),
       prompt: `
 Extract information for field "${field}" from the following page text.
 
@@ -87,7 +87,7 @@ ${text}
   if (schema instanceof z.ZodArray) {
     // 🧠 If the schema is a ZodArray, we need to wrap it in an object!
     const { object } = await generateObject({
-      model: openai('gpt-4.5-preview'),
+      model: openai('gpt-4o'),
       schema: z.object({ items: schema }),
       prompt: `
 Extract information for field "${field}" from the following page text.
