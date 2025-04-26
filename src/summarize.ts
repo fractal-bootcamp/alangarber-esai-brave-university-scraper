@@ -10,7 +10,7 @@ const summarySchema = z.object({
 
 export async function summarizeText(pageText: string) {
   const { object } = await generateObject({
-    model: openai('gpt-4.5-preview'),
+    model: openai('gpt-4o'),
     schema: summarySchema,
     prompt: `
 Summarize the following university webpage clearly and concisely. Return only a single string labeled 'summary'.

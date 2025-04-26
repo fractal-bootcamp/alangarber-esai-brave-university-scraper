@@ -68,11 +68,11 @@ export async function extractStructuredData(field: UniversityField, text: string
     return null;
   }
 
-  if (schema instanceof z.ZodString) {
-    // If the schema is a simple string
-    const { text: generated } = await generateText({
-      model: openai('gpt-4.5-preview'),
-      prompt: `
+  try {
+    if (schema instanceof z.ZodString) {
+      const { text: generated } = await generateText({
+        model: openai('gpt-4o'),
+        prompt: `
 Extract information for field "${field}" from the following page text.
 
 ${prompts[field]}
@@ -80,16 +80,15 @@ ${prompts[field]}
 Text:
 ${text}
 `.trim(),
-    });
-    return generated.trim();
-  }
+      });
+      return generated.trim();
+    }
 
-  if (schema instanceof z.ZodArray) {
-    // 🧠 If the schema is a ZodArray, we need to wrap it in an object!
-    const { object } = await generateObject({
-      model: openai('gpt-4.5-preview'),
-      schema: z.object({ items: schema }),
-      prompt: `
+    if (schema instanceof z.ZodArray) {
+      const { object } = await generateObject({
+        model: openai('gpt-4o'),
+        schema: z.object({ items: schema }),
+        prompt: `
 Extract information for field "${field}" from the following page text.
 
 ${prompts[field]}
@@ -98,11 +97,14 @@ Text:
 ${text}
 Return as JSON with an "items" array.
 `.trim(),
-    });
-    return object.items; // ✅ Extract the actual array from the wrapped object
+      });
+      return object.items;
+    }
+  } catch (error) {
+    console.error(`❌ OpenAI call failed for field ${field}:`, error);
+    return null;
   }
 
-  // Otherwise fallback (should not happen)
   console.warn(`⚠️ Unsupported schema type for field ${field}`);
   return null;
 }
