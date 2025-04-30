@@ -6,6 +6,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "scrape": "tsx src/scrape.ts",
+    "start": "tsx src/scrape.ts",
     "summarize": "tsx src/summarize.ts"
   },
   "keywords": [],
