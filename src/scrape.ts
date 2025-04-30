@@ -4,13 +4,27 @@ import { scrapeFieldPage } from './scrapers/scrapeFieldPage.js';
 import { mergeUniversityFiles } from './merge.js';
 import { writeFileSync, mkdirSync, existsSync, appendFileSync } from 'fs';
 import { join } from 'path';
-import universities from './universities.json' assert { type: "json" };
+import { readFileSync } from 'fs';
 import pLimit from 'p-limit';
 import 'dotenv/config';
 import { loadSchema } from './loadSchema.js';
 
+interface University {
+  name: string;
+  url: string;
+}
+
 const SCHEMA_PATH = './src/schema.json';
-const { schema, fieldQueries, fieldTypes, fieldAvoidList, globalAvoidList } = loadSchema(SCHEMA_PATH);
+const UNIVERSITIES_PATH = './src/universities.json';
+
+const schemaJSON = process.env.SCHEMA_JSON;
+const universityJSON = process.env.UNIVERSITIES_JSON;
+
+const { schema, fieldQueries, fieldTypes, fieldAvoidList, globalAvoidList } = schemaJSON ? loadSchema(undefined, schemaJSON) : loadSchema(SCHEMA_PATH);
+
+const universities: University[] = universityJSON
+  ? JSON.parse(universityJSON)
+  : JSON.parse(readFileSync(UNIVERSITIES_PATH, 'utf-8'));
 
 function setupRun() {
   const runId = new Date().toISOString().replace(/[:.]/g, "-");
@@ -95,7 +109,7 @@ async function scrapeUniversity(universityName: string, homepageUrl: string, run
     writeFileSync(outputPath, JSON.stringify(universityData, null, 2));
     console.log(`✅ Saved ${safeName} raw data to ${outputPath}`);
 
-    mergeUniversityFiles(safeName, runDir, SCHEMA_PATH);
+    mergeUniversityFiles(safeName, runDir, schemaJSON ? undefined : SCHEMA_PATH);
     logToFile(`✅ Scraped ${universityName}`, runDir);
   } catch (error) {
     console.error(`❌ Error scraping ${universityName}:`, error);
