@@ -1,0 +1,7 @@
+services:
+  - type: cron
+    name: esai-university-scraper
+    env: node
+    buildCommand: pnpm install
+    startCommand: pnpm run start
+    schedule: "manual"
