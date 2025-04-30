@@ -1,8 +1,5 @@
 [
-    { "name": "University of Chicago", "url": "https://www.uchicago.edu" },
-    { "name": "Rice University", "url": "https://www.rice.edu" },
-    { "name": "New York University", "url": "https://www.nyu.edu" },
-    { "name": "Spelman College", "url": "https://www.spelman.edu" },
-    { "name": "University of California, Santa Cruz", "url": "https://www.ucsc.edu" }
-  ]
-  
+  { "name": "Carleton College", "url": "https://www.carleton.edu" },
+  { "name": "Howard University", "url": "https://www.howard.edu" },
+  { "name": "University of Vermont", "url": "https://www.uvm.edu" }
+]

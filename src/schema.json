@@ -1,0 +1,53 @@
+{
+    "characterSummary": {
+      "type": "string",
+      "search": "about"
+    },
+    "admissionsFocus": {
+      "type": "string",
+      "search": "admissions philosophy"
+    },
+    "notableAlumni": {
+      "type": "array",
+      "search": "notable alumni",
+      "dedupeBy": "name",
+      "items": {
+        "name": "string",
+        "achievement": "string?"
+      }
+    },
+    "professors": {
+      "type": "array",
+      "search": "faculty directory",
+      "dedupeBy": "name",
+      "avoid": ["wikipedia.org"],
+      "items": {
+        "name": "string",
+        "department": "string?",
+        "bio": "string?"
+      }
+    },
+    "studentOrgs": {
+      "type": "array",
+      "search": "student organizations",
+      "dedupeBy": "name",
+      "items": {
+        "name": "string",
+        "category": "string?",
+        "description": "string?",
+        "url": "string?"
+      }
+    },
+    "events": {
+      "type": "array",
+      "search": "events calendar",
+      "dedupeBy": "title",
+      "avoid": ["uvmbored.com"],
+      "items": {
+        "title": "string",
+        "date": "string?",
+        "description": "string?"
+      }
+    }
+  }
+  

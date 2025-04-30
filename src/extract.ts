@@ -1,110 +1,67 @@
 import { generateObject, generateText } from 'ai';
 import { openai } from '@ai-sdk/openai';
-import { z } from 'zod';
+import { z, ZodTypeAny, ZodString, ZodArray } from 'zod';
+import { FieldType } from './loadSchema.js';
 import 'dotenv/config';
 
-export type UniversityField = 'characterSummary' | 'admissionsFocus' | 'knownFor' | 'studentOrgs' | 'professors' | 'events';
+interface ExtractionOptions {
+  field: string;
+  text: string;
+  zodSchema: ZodTypeAny;
+  fieldType: FieldType;
+}
 
-const fieldSchemas: Record<UniversityField, z.ZodTypeAny> = {
-  characterSummary: z.string(),
-  admissionsFocus: z.string(),
-  knownFor: z.array(z.string()),
-  studentOrgs: z.array(z.object({
-    name: z.string(),
-    category: z.string().optional(),
-    description: z.string().optional(),
-    url: z.string().optional(),
-  })),
-  professors: z.array(z.object({
-    name: z.string(),
-    department: z.string().optional(),
-    bioSnippet: z.string().optional(),
-  })),
-  events: z.array(z.object({
-    title: z.string(),
-    date: z.string().optional(),
-    description: z.string().optional(),
-  })),
-};
-
-const prompts: Record<UniversityField, string> = {
-  characterSummary: `
-Summarize the general character and vibe of the university in 1-3 clear sentences.
-Return a simple string.
-`.trim(),
-
-  admissionsFocus: `
-Summarize the university's admissions philosophy based on this text, in 1-3 clear sentences.
-If test-optional, holistic, GPA-focused, etc., mention that.
-Return a simple string.
-`.trim(),
-
-  knownFor: `
-Extract notable fields of study or academic areas the university is known for.
-Return a JSON array of strings.
-`.trim(),
-
-  studentOrgs: `
-Extract a list of student organizations from the text.
-Return a JSON array of objects like: { "name": "...", "category": "...", "description": "...", "url": "..." }
-`.trim(),
-
-  professors: `
-Extract a list of professors mentioned in the text.
-Return a JSON array of objects like: { "name": "...", "department": "...", "bioSnippet": "..." }
-`.trim(),
-
-  events: `
-Extract a list of upcoming or notable university events from the text.
-Return a JSON array of objects like: { "title": "...", "date": "...", "description": "..." }
-`.trim(),
-};
-
-export async function extractStructuredData(field: UniversityField, text: string): Promise<any> {
-  const schema = fieldSchemas[field];
-
-  if (!schema) {
-    console.warn(`⚠️ No schema defined for field ${field}`);
-    return null;
+/**
+ * Generate a basic prompt based on field type and name.
+ * If desired, you can extend this later to pull from a user-defined template.
+ */
+function generatePrompt(field: string, fieldType: FieldType): string {
+  if (fieldType === 'string') {
+    return `
+Extract a concise summary of the field "${field}" from the following university web page text.
+Return a simple plain text string.
+`.trim();
   }
 
+  if (fieldType === 'array') {
+    return `
+Extract a list of values for the field "${field}" from the following university web page text.
+Return a JSON object with a single key "items", containing an array of structured entries matching the schema.
+`.trim();
+  }
+
+  throw new Error(`Unsupported field type for prompt: ${fieldType}`);
+}
+
+export async function extractStructuredData({ field, text, zodSchema, fieldType }: ExtractionOptions): Promise<any> {
   try {
-    if (schema instanceof z.ZodString) {
-      const { text: generated } = await generateText({
-        model: openai('gpt-4o'),
-        prompt: `
-Extract information for field "${field}" from the following page text.
+    const prompt = generatePrompt(field, fieldType);
 
-${prompts[field]}
+    const baseSchema = typeof (zodSchema as any).unwrap === 'function'
+      ? (zodSchema as any).unwrap()
+      : zodSchema;
 
-Text:
-${text}
-`.trim(),
+    if (baseSchema instanceof ZodString) {
+      const { text: result } = await generateText({
+        model: openai('gpt-4o-mini'),
+        prompt: `${prompt}\n\nText:\n${text}`.trim(),
       });
-      return generated.trim();
+      return result.trim();
     }
 
-    if (schema instanceof z.ZodArray) {
+    if (baseSchema instanceof ZodArray) {
       const { object } = await generateObject({
-        model: openai('gpt-4o'),
-        schema: z.object({ items: schema }),
-        prompt: `
-Extract information for field "${field}" from the following page text.
-
-${prompts[field]}
-
-Text:
-${text}
-Return as JSON with an "items" array.
-`.trim(),
+        model: openai('gpt-4o-mini'),
+        schema: z.object({ items: baseSchema }),
+        prompt: `${prompt}\n\nText:\n${text}\n\nReturn as: { "items": [...] }`.trim(),
       });
       return object.items;
     }
-  } catch (error) {
-    console.error(`❌ OpenAI call failed for field ${field}:`, error);
+
+    console.warn(`⚠️ Unsupported Zod schema type for field: ${field}`);
+    return null;
+  } catch (err) {
+    console.error(`❌ Failed to extract ${field}:`, err);
     return null;
   }
-
-  console.warn(`⚠️ Unsupported schema type for field ${field}`);
-  return null;
 }

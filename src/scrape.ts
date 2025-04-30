@@ -2,19 +2,15 @@ import { braveSearch } from './search.js';
 import { scrapeHomepage } from './scrapers/scrapeHomepage.js';
 import { scrapeFieldPage } from './scrapers/scrapeFieldPage.js';
 import { mergeUniversityFiles } from './merge.js';
-import { UniversityField } from './extract.js';
 import { writeFileSync, mkdirSync, existsSync, appendFileSync } from 'fs';
 import { join } from 'path';
 import universities from './universities.json' assert { type: "json" };
 import pLimit from 'p-limit';
 import 'dotenv/config';
+import { loadSchema } from './loadSchema.js';
 
-const FIELD_QUERIES = {
-  admissionsFocus: 'admissions',
-  professors: 'professors',
-  studentOrgs: 'student organizations',
-  events: 'events',
-} as const;
+const SCHEMA_PATH = './src/schema.json';
+const { schema, fieldQueries, fieldTypes, fieldAvoidList, globalAvoidList } = loadSchema(SCHEMA_PATH);
 
 function setupRun() {
   const runId = new Date().toISOString().replace(/[:.]/g, "-");
@@ -28,9 +24,16 @@ function logToFile(message: string, runDir: string) {
   appendFileSync(logPath, message + "\n");
 }
 
-// 🆕 Updated version of findFieldUrls to return multiple URLs per field
+function shouldAvoid(url: string, field: string): boolean {
+  const allBanned = new Set([
+    ...globalAvoidList,
+    ...(fieldAvoidList[field] || [])
+  ]);
+  return Array.from(allBanned).some(domain => url.includes(domain));
+}
+
 async function findFieldUrls(universityName: string): Promise<Record<string, string[]>> {
-  const queries = Object.entries(FIELD_QUERIES).map(([field, keyword]) => ({
+  const queries = Object.entries(fieldQueries).map(([field, keyword]) => ({
     field,
     query: `${universityName} ${keyword}`,
   }));
@@ -39,18 +42,16 @@ async function findFieldUrls(universityName: string): Promise<Record<string, str
     queries.map(({ query }) => braveSearch(query))
   );
 
-  const fieldUrlPairs = queries.map(({ field }, i) => {
-    const filteredUrls = searchResults[i]
-      .filter(url => !url.includes("usnews.com")) // ❗ exclude bad domains
-      .slice(0, 3); // still grab top 3
-
-    return [field, filteredUrls];
-  });
-
-  return Object.fromEntries(fieldUrlPairs);
+  return Object.fromEntries(
+    queries.map(({ field }, i) => {
+      const urls = searchResults[i]
+        .filter(url => !shouldAvoid(url, field))
+        .slice(0, 3);
+      return [field, urls];
+    })
+  );
 }
 
-// 🆕 Updated scrapeUniversity to handle multiple URLs per field
 async function scrapeUniversity(universityName: string, homepageUrl: string, runId: string, runDir: string) {
   try {
     console.log(`\n🎓 Starting scrape for ${universityName}...`);
@@ -58,27 +59,26 @@ async function scrapeUniversity(universityName: string, homepageUrl: string, run
     console.log(`🌐 Scraped homepage for ${universityName}`);
 
     const fieldUrls = await findFieldUrls(universityName);
-
-    const pageLimit = pLimit(2); // 🆕 limit 2 concurrent page scrapes per university
+    const pageLimit = pLimit(2);
 
     const fieldDataPromises = Object.entries(fieldUrls).map(async ([field, urls]) => {
+      const zodField = schema.shape[field];
+      const fieldType = fieldTypes[field];
+
       const results = await Promise.all(
-        urls.map(url => 
-          pageLimit(async () => {
-            console.log(`🔍 Scraping field "${field}" from ${url}`);
-            return scrapeFieldPage(url, field as UniversityField);
-          })
+        urls.map(url =>
+          pageLimit(() =>
+            scrapeFieldPage(url, field, zodField, fieldType)
+          )
         )
       );
-    
-      const successfulResults = results.filter(Boolean);    
 
-      if (field === 'knownFor' || field === 'studentOrgs' || field === 'professors' || field === 'events') {
-        return [field, successfulResults.flat()];
-      } else {
-        return [field, successfulResults.join(' ')];
-      }
-    
+      const successfulResults = results.filter(Boolean);
+      const value = fieldType === 'array'
+        ? successfulResults.flat()
+        : successfulResults.join(' ');
+
+      return [field, value];
     });
 
     const fieldData = Object.fromEntries(await Promise.all(fieldDataPromises));
@@ -95,7 +95,7 @@ async function scrapeUniversity(universityName: string, homepageUrl: string, run
     writeFileSync(outputPath, JSON.stringify(universityData, null, 2));
     console.log(`✅ Saved ${safeName} raw data to ${outputPath}`);
 
-    mergeUniversityFiles(safeName, runDir);
+    mergeUniversityFiles(safeName, runDir, SCHEMA_PATH);
     logToFile(`✅ Scraped ${universityName}`, runDir);
   } catch (error) {
     console.error(`❌ Error scraping ${universityName}:`, error);
@@ -109,11 +109,14 @@ function sleep(ms: number) {
 
 (async () => {
   const { runId, runDir } = setupRun();
-  const limit = pLimit(3); // Limit concurrency to 3 universities at once
+  const limit = pLimit(3);
 
   for (const { name, url } of universities) {
-    await limit(() => scrapeUniversity(name, url, runId, runDir));
-    await sleep(3000); // 💤 wait 3 seconds after each university
+    await Promise.all(
+      universities.map(({ name, url }) =>
+        limit(() => scrapeUniversity(name, url, runId, runDir))
+      )
+    );    
   }
 
   console.log(`\n🎯 All universities scraped and merged! Output directory: ${runDir}`);
