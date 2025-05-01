@@ -88,14 +88,11 @@ async function scrapeUniversity(
   runId: string,
   runDir: string,
   browser: Browser
-) {
+): Promise<[string, any] | null> {
   try {
-    console.log(`\n🎓 Starting scrape for ${universityName}...`);
     const homepageData = await scrapeHomepage(homepageUrl, browser);
-    console.log(`🌐 Scraped homepage for ${universityName}`);
-
     const fieldUrls = await findFieldUrls(universityName);
-    const pageLimit = pLimit(3); // Moderate parallelism for field scraping
+    const pageLimit = pLimit(3);
 
     const fieldDataPromises = Object.entries(fieldUrls).map(async ([field, urls]) => {
       const zodField = schema.shape[field];
@@ -128,15 +125,14 @@ async function scrapeUniversity(
 
     const safeName = universityName.toLowerCase().replace(/\s+/g, '_');
     const outputPath = join(runDir, `${safeName}-${runId}.json`);
-
     writeFileSync(outputPath, JSON.stringify(universityData, null, 2));
-    console.log(`✅ Saved ${safeName} raw data to ${outputPath}`);
 
-    mergeUniversityFiles(safeName, runDir, schemaJSON ? undefined : SCHEMA_PATH);
+    const validated = mergeUniversityFiles(safeName, runDir, schemaJSON ? undefined : SCHEMA_PATH);
     logToFile(`✅ Scraped ${universityName}`, runDir);
+    return [safeName, validated];
   } catch (error) {
-    console.error(`❌ Error scraping ${universityName}:`, error);
     logToFile(`❌ Failed ${universityName}: ${error}`, runDir);
+    return null;
   }
 }
 
@@ -144,10 +140,17 @@ async function scrapeUniversity(
   const { runId, runDir } = setupRun();
   const browser = await chromium.launch({ headless: true });
 
+  const results: Record<string, any> = {};
   for (const { name, url } of universities) {
-    await scrapeUniversity(name, url, runId, runDir, browser);
+    const result = await scrapeUniversity(name, url, runId, runDir, browser);
+    if (result) {
+      const [key, value] = result;
+      results[key] = value;
+    }
   }
 
   await browser.close();
-  console.log(`\n🎯 All universities scraped and merged! Output directory: ${runDir}`);
+
+  console.log('\n🎯 All universities scraped and merged!\n');
+  console.log(JSON.stringify(results, null, 2));
 })();

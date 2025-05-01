@@ -17,7 +17,7 @@ function deduplicateBy<T>(arr: T[], keyFn: (item: T) => string): T[] {
 /**
  * Merges and deduplicates partial university files into one validated file.
  */
-export function mergeUniversityFiles(university: string, runDir: string, schemaPath = './src/schema.json') {
+export function mergeUniversityFiles(university: string, runDir: string, schemaPath = './src/schema.json'): any {
   const files = readdirSync(runDir).filter(f => f.startsWith(university + '-') && f.endsWith('.json'));
   console.log(`📦 Merging ${files.length} partial files for ${university}`);
 
@@ -73,6 +73,5 @@ export function mergeUniversityFiles(university: string, runDir: string, schemaP
   console.log(`🧹 Deleted ${files.length - 1} temp files.`);
 
   // Log final JSON in logs
-  console.log("📦 Final JSON blob:");
-  console.log(JSON.stringify(validated, null, 2));
+  return validated;
 }
