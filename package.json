@@ -8,7 +8,8 @@
     "prepare": "esbuild --version",
     "scrape": "tsx src/scrape.ts",
     "start": "tsx src/scrape.ts",
-    "summarize": "tsx src/summarize.ts"
+    "summarize": "tsx src/summarize.ts",
+    "postinstall": "pnpm exec playwright install"
   },
   "keywords": [],
   "author": "",
