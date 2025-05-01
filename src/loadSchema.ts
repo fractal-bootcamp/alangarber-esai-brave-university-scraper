@@ -92,23 +92,21 @@ export function loadSchema(schemaPath?: string, schemaText?: string): LoadSchema
 
   // Load global avoid list if path was used
   let globalAvoidList: string[] = [];
-  if (!schemaText && schemaPath) {
-    if (process.env.GLOBAL_AVOID_DOMAINS) {
-      try {
-        globalAvoidList = JSON.parse(process.env.GLOBAL_AVOID_DOMAINS);
-      } catch (err) {
-        console.warn(`⚠️ Failed to parse GLOBAL_AVOID_DOMAINS env variable. Must be a JSON array of domains.`);
-      }
-    } else if (schemaPath) {
-      const avoidPath = path.join(path.dirname(schemaPath), 'permanently_banned.json');
-      try {
-        globalAvoidList = JSON.parse(readFileSync(avoidPath, 'utf-8'));
-      } catch (err) {
-        console.warn(`⚠️ Could not load global avoid list at ${avoidPath}`);
-      }
-    }    
+  if (process.env.GLOBAL_AVOID_DOMAINS) {
+    try {
+      globalAvoidList = JSON.parse(process.env.GLOBAL_AVOID_DOMAINS);
+    } catch (err) {
+      console.warn(`⚠️ Failed to parse GLOBAL_AVOID_DOMAINS env variable. Must be a JSON array of domains.`);
+    }
+  } else if (!schemaText && schemaPath) {
+    const avoidPath = path.join(path.dirname(schemaPath), 'permanently_banned.json');
+    try {
+      globalAvoidList = JSON.parse(readFileSync(avoidPath, 'utf-8'));
+    } catch (err) {
+      console.warn(`⚠️ Could not load global avoid list at ${avoidPath}`);
+    }
   }
-
+  
   return {
     schema: z.object(shape),
     fieldQueries,
