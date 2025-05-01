@@ -1,25 +1,33 @@
-import { chromium } from 'playwright'; // or 'playwright-core' if you're bundling
+import { Browser } from 'playwright';
 import { v4 as uuidv4 } from 'uuid';
 
-export async function scrapeHomepage(url: string) {
-    console.log(`🌐 Scraping homepage for ${url}...`);
+export async function scrapeHomepage(url: string, browser: Browser) {
+  console.log(`🌐 Scraping homepage for ${url}...`);
 
-  const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();
 
-  await page.goto(url, { waitUntil: 'domcontentloaded' });
+  try {
+    await page.goto(url, {
+      waitUntil: 'domcontentloaded',
+      timeout: 60000, // longer timeout for slow pages
+    });
 
-  // Scrape basic fields
-  const title = await page.title();
-  const description = await page.$eval('meta[name="description"]', el => el.getAttribute('content')).catch(() => null);
+    const title = await page.title();
 
-  await browser.close();
+    const description = await page
+      .$eval('meta[name="description"]', el => el.getAttribute('content'))
+      .catch(() => null);
 
-  // Return a minimal homepage scrape object
-  return {
-    id: uuidv4(),
-    name: title.replace(/[\n\t]/g, '').trim() || "Unknown University",
-    website: url,
-    characterSummary: description || '',
-  };
+    return {
+      id: uuidv4(),
+      name: title?.replace(/[\n\t]/g, '').trim() || 'Unknown University',
+      website: url,
+      characterSummary: description || '',
+    };
+  } catch (err) {
+    console.error(`❌ Failed to scrape homepage at ${url}:`, err);
+    throw err;
+  } finally {
+    await page.close(); // always close the page!
+  }
 }

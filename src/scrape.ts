@@ -1,10 +1,10 @@
+import { chromium, Browser } from 'playwright';
 import { braveSearch } from './search.js';
 import { scrapeHomepage } from './scrapers/scrapeHomepage.js';
 import { scrapeFieldPage } from './scrapers/scrapeFieldPage.js';
 import { mergeUniversityFiles } from './merge.js';
-import { writeFileSync, mkdirSync, existsSync, appendFileSync } from 'fs';
+import { writeFileSync, mkdirSync, existsSync, appendFileSync, readFileSync } from 'fs';
 import { join } from 'path';
-import { readFileSync } from 'fs';
 import pLimit from 'p-limit';
 import 'dotenv/config';
 import { loadSchema } from './loadSchema.js';
@@ -20,22 +20,28 @@ const UNIVERSITIES_PATH = './src/universities.json';
 const schemaJSON = process.env.SCHEMA_JSON;
 const universityJSON = process.env.UNIVERSITIES_JSON;
 
-const { schema, fieldQueries, fieldTypes, fieldAvoidList, globalAvoidList } = schemaJSON ? loadSchema(undefined, schemaJSON) : loadSchema(SCHEMA_PATH);
+const {
+  schema,
+  fieldQueries,
+  fieldTypes,
+  fieldAvoidList,
+  globalAvoidList,
+} = schemaJSON ? loadSchema(undefined, schemaJSON) : loadSchema(SCHEMA_PATH);
 
 const universities: University[] = universityJSON
   ? JSON.parse(universityJSON)
   : JSON.parse(readFileSync(UNIVERSITIES_PATH, 'utf-8'));
 
 function setupRun() {
-  const runId = new Date().toISOString().replace(/[:.]/g, "-");
+  const runId = new Date().toISOString().replace(/[:.]/g, '-');
   const runDir = `data/${runId}`;
   if (!existsSync(runDir)) mkdirSync(runDir, { recursive: true });
   return { runId, runDir };
 }
 
 function logToFile(message: string, runDir: string) {
-  const logPath = join(runDir, "scrape-log.txt");
-  appendFileSync(logPath, message + "\n");
+  const logPath = join(runDir, 'scrape-log.txt');
+  appendFileSync(logPath, message + '\n');
 }
 
 function shouldAvoid(rawUrl: string, field: string): boolean {
@@ -45,14 +51,14 @@ function shouldAvoid(rawUrl: string, field: string): boolean {
 
     const allBanned = new Set([
       ...globalAvoidList.map(d => d.toLowerCase()),
-      ...(fieldAvoidList[field] || []).map(d => d.toLowerCase())
+      ...(fieldAvoidList[field] || []).map(d => d.toLowerCase()),
     ]);
 
-    return Array.from(allBanned).some(banned =>
-      hostname === banned || hostname.endsWith(`.${banned}`)
+    return Array.from(allBanned).some(
+      banned => hostname === banned || hostname.endsWith(`.${banned}`)
     );
   } catch {
-    return false; // fallback for malformed URLs
+    return false;
   }
 }
 
@@ -76,14 +82,20 @@ async function findFieldUrls(universityName: string): Promise<Record<string, str
   );
 }
 
-async function scrapeUniversity(universityName: string, homepageUrl: string, runId: string, runDir: string) {
+async function scrapeUniversity(
+  universityName: string,
+  homepageUrl: string,
+  runId: string,
+  runDir: string,
+  browser: Browser
+) {
   try {
     console.log(`\n🎓 Starting scrape for ${universityName}...`);
-    const homepageData = await scrapeHomepage(homepageUrl);
+    const homepageData = await scrapeHomepage(homepageUrl, browser);
     console.log(`🌐 Scraped homepage for ${universityName}`);
 
     const fieldUrls = await findFieldUrls(universityName);
-    const pageLimit = pLimit(2);
+    const pageLimit = pLimit(3); // Moderate parallelism for field scraping
 
     const fieldDataPromises = Object.entries(fieldUrls).map(async ([field, urls]) => {
       const zodField = schema.shape[field];
@@ -92,15 +104,16 @@ async function scrapeUniversity(universityName: string, homepageUrl: string, run
       const results = await Promise.all(
         urls.map(url =>
           pageLimit(() =>
-            scrapeFieldPage(url, field, zodField, fieldType)
+            scrapeFieldPage(url, field, zodField, fieldType, browser)
           )
         )
       );
 
       const successfulResults = results.filter(Boolean);
-      const value = fieldType === 'array'
-        ? successfulResults.flat()
-        : successfulResults.join(' ');
+      const value =
+        fieldType === 'array'
+          ? successfulResults.flat()
+          : successfulResults.join(' ');
 
       return [field, value];
     });
@@ -113,7 +126,7 @@ async function scrapeUniversity(universityName: string, homepageUrl: string, run
       scrapedAt: new Date().toISOString(),
     };
 
-    const safeName = universityName.toLowerCase().replace(/\s+/g, "_");
+    const safeName = universityName.toLowerCase().replace(/\s+/g, '_');
     const outputPath = join(runDir, `${safeName}-${runId}.json`);
 
     writeFileSync(outputPath, JSON.stringify(universityData, null, 2));
@@ -127,18 +140,14 @@ async function scrapeUniversity(universityName: string, homepageUrl: string, run
   }
 }
 
-function sleep(ms: number) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
 (async () => {
   const { runId, runDir } = setupRun();
+  const browser = await chromium.launch({ headless: true });
 
-    await Promise.all(
-      universities.map(({ name, url }) =>
-        scrapeUniversity(name, url, runId, runDir)
-    )
-    );    
+  for (const { name, url } of universities) {
+    await scrapeUniversity(name, url, runId, runDir, browser);
+  }
 
+  await browser.close();
   console.log(`\n🎯 All universities scraped and merged! Output directory: ${runDir}`);
 })();

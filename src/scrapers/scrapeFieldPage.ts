@@ -1,4 +1,4 @@
-import { chromium } from 'playwright';
+import { Browser } from 'playwright';
 import { extractStructuredData } from '../extract.js';
 import { ZodTypeAny } from 'zod';
 import { FieldType } from '../loadSchema.js';
@@ -7,14 +7,19 @@ export async function scrapeFieldPage(
   url: string,
   field: string,
   zodSchema: ZodTypeAny,
-  fieldType: FieldType
+  fieldType: FieldType,
+  browser: Browser
 ) {
   console.log(`🔍 Scraping field "${field}" from ${url}...`);
-  const browser = await chromium.launch({ headless: true });
+
   const page = await browser.newPage();
 
   try {
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+    await page.goto(url, {
+      waitUntil: 'domcontentloaded',
+      timeout: 60000, // bump from 30s to 60s
+    });
+
     const bodyText = await page.textContent('body');
     const cleaned = bodyText?.replace(/\s+/g, ' ').trim() || '';
 
@@ -30,13 +35,12 @@ export async function scrapeFieldPage(
       fieldType,
     });
 
-    console.log(`📄 Extracted ${field}:`, data ? "✅ Success" : "⚠️ Empty or Failed");
+    console.log(`📄 Extracted ${field}:`, data ? '✅ Success' : '⚠️ Empty or Failed');
     return data;
   } catch (err) {
     console.error(`❌ Error at ${url}:`, err);
     return null;
   } finally {
     await page.close();
-    await browser.close();
   }
 }
