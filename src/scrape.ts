@@ -38,12 +38,22 @@ function logToFile(message: string, runDir: string) {
   appendFileSync(logPath, message + "\n");
 }
 
-function shouldAvoid(url: string, field: string): boolean {
-  const allBanned = new Set([
-    ...globalAvoidList,
-    ...(fieldAvoidList[field] || [])
-  ]);
-  return Array.from(allBanned).some(domain => url.includes(domain));
+function shouldAvoid(rawUrl: string, field: string): boolean {
+  try {
+    const parsed = new URL(rawUrl);
+    const hostname = parsed.hostname.toLowerCase();
+
+    const allBanned = new Set([
+      ...globalAvoidList.map(d => d.toLowerCase()),
+      ...(fieldAvoidList[field] || []).map(d => d.toLowerCase())
+    ]);
+
+    return Array.from(allBanned).some(banned =>
+      hostname === banned || hostname.endsWith(`.${banned}`)
+    );
+  } catch {
+    return false; // fallback for malformed URLs
+  }
 }
 
 async function findFieldUrls(universityName: string): Promise<Record<string, string[]>> {
@@ -73,7 +83,7 @@ async function scrapeUniversity(universityName: string, homepageUrl: string, run
     console.log(`🌐 Scraped homepage for ${universityName}`);
 
     const fieldUrls = await findFieldUrls(universityName);
-    const pageLimit = pLimit(1);
+    const pageLimit = pLimit(2);
 
     const fieldDataPromises = Object.entries(fieldUrls).map(async ([field, urls]) => {
       const zodField = schema.shape[field];
@@ -123,15 +133,12 @@ function sleep(ms: number) {
 
 (async () => {
   const { runId, runDir } = setupRun();
-  const limit = pLimit(1);
 
-  for (const { name, url } of universities) {
     await Promise.all(
       universities.map(({ name, url }) =>
-        limit(() => scrapeUniversity(name, url, runId, runDir))
-      )
+        scrapeUniversity(name, url, runId, runDir)
+    )
     );    
-  }
 
   console.log(`\n🎯 All universities scraped and merged! Output directory: ${runDir}`);
 })();

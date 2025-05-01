@@ -71,4 +71,8 @@ export function mergeUniversityFiles(university: string, runDir: string, schemaP
     }
   }
   console.log(`🧹 Deleted ${files.length - 1} temp files.`);
+
+  // Log final JSON in logs
+  console.log("📦 Final JSON blob:");
+  console.log(JSON.stringify(validated, null, 2));
 }
