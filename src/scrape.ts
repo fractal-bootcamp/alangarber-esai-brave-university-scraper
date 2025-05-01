@@ -152,5 +152,6 @@ async function scrapeUniversity(
   await browser.close();
 
   console.log('\n🎯 All universities scraped and merged!\n');
+  console.log("=== FINAL JSON REPORT ===");
   console.log(JSON.stringify(results, null, 2));
 })();
