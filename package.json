@@ -7,7 +7,7 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "prepare": "esbuild --version",
     "scrape": "tsx src/scrape.ts",
-    "start": "pnpm exec playwright install chromium && tsx src/scrape.ts",
+    "start": "tsx src/scrape.ts",
     "summarize": "tsx src/summarize.ts",
     "postinstall": "pnpm exec playwright install chromium"
   },

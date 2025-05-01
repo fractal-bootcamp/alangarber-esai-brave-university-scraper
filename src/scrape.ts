@@ -73,7 +73,7 @@ async function scrapeUniversity(universityName: string, homepageUrl: string, run
     console.log(`🌐 Scraped homepage for ${universityName}`);
 
     const fieldUrls = await findFieldUrls(universityName);
-    const pageLimit = pLimit(2);
+    const pageLimit = pLimit(1);
 
     const fieldDataPromises = Object.entries(fieldUrls).map(async ([field, urls]) => {
       const zodField = schema.shape[field];
@@ -123,7 +123,7 @@ function sleep(ms: number) {
 
 (async () => {
   const { runId, runDir } = setupRun();
-  const limit = pLimit(3);
+  const limit = pLimit(1);
 
   for (const { name, url } of universities) {
     await Promise.all(
